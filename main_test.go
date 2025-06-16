@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,26 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestCafeWhenOk(t *testing.T) {
-	handler := http.HandlerFunc(mainHandle)
-
-	requests := []string{
-		"/cafe?count=2&city=moscow",
-		"/cafe?city=tula",
-		"/cafe?city=moscow&search=ложка",
-	}
-
-	for _, v := range requests {
-		response := httptest.NewRecorder()
-		req := httptest.NewRequest("GET", v, nil)
-
-		handler.ServeHTTP(response, req)
-
-		assert.Equal(t, http.StatusOK, response.Code)
-	}
-
-}
 
 func TestCafeNegative(t *testing.T) {
 	handler := http.HandlerFunc(mainHandle)
@@ -57,6 +35,26 @@ func TestCafeNegative(t *testing.T) {
 	}
 }
 
+func TestCafeWhenOk(t *testing.T) {
+	handler := http.HandlerFunc(mainHandle)
+
+	requests := []string{
+		"/cafe?count=2&city=moscow",
+		"/cafe?city=tula",
+		"/cafe?city=moscow&search=ложка",
+	}
+
+	for _, v := range requests {
+		response := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", v, nil)
+
+		handler.ServeHTTP(response, req)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+	}
+
+}
+
 func TestCafeCount(t *testing.T) {
 	handler := http.HandlerFunc(mainHandle)
 
@@ -67,7 +65,7 @@ func TestCafeCount(t *testing.T) {
 		{0, 0},
 		{1, 1},
 		{2, 2},
-		{100, len(cafeList["moscow"])},
+		{100, min(len(cafeList["moscow"]), 100)},
 	}
 
 	for _, v := range requests {
@@ -75,21 +73,20 @@ func TestCafeCount(t *testing.T) {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/cafe?city=moscow&count=%d", v.count), nil)
 
 		handler.ServeHTTP(response, req)
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			log.Printf("can't read%v\n", err)
-		}
 
-		slice := strings.Split(string(body), ",")
+		require.Equal(t, http.StatusOK, response.Code)
+
+		body := strings.TrimSpace(response.Body.String())
+
+		slice := strings.Split(body, ",")
 		var sliceCafe []string
 		for _, str := range slice {
-			if str != "" {
+			if len(str) != 0 {
 				sliceCafe = append(sliceCafe, str)
 			}
 		}
 
-		require.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, v.want, len(sliceCafe))
+		assert.Len(t, sliceCafe, v.want)
 	}
 }
 
@@ -110,20 +107,22 @@ func TestCafeSearch(t *testing.T) {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/cafe?city=moscow&search=%s", v.search), nil)
 
 		handler.ServeHTTP(response, req)
-		body, err := io.ReadAll(response.Body)
-		if err != nil {
-			log.Printf("can't read%v\n", err)
-		}
-
-		slice := strings.Split(string(body), ",")
-		var found int
-		for _, str := range slice {
-			if strings.Contains(strings.ToLower(str), strings.ToLower(v.search)) {
-				found++
-			}
-		}
 
 		require.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, v.wantCount, found)
+
+		body := response.Body.String()
+
+		var slice []string
+		if len(body) == 0 {
+			slice = []string{}
+		} else {
+			slice = strings.Split(body, ",")
+		}
+
+		assert.Len(t, slice, v.wantCount)
+
+		for _, str := range slice {
+			assert.Contains(t, strings.ToLower(str), strings.ToLower(v.search))
+		}
 	}
 }
