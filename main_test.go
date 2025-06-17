@@ -78,15 +78,14 @@ func TestCafeCount(t *testing.T) {
 
 		body := strings.TrimSpace(response.Body.String())
 
-		slice := strings.Split(body, ",")
-		var sliceCafe []string
-		for _, str := range slice {
-			if len(str) != 0 {
-				sliceCafe = append(sliceCafe, str)
-			}
+		var slice []string
+		if len(body) == 0 {
+			slice = []string{}
+		} else {
+			slice = strings.Split(body, ",")
 		}
 
-		assert.Len(t, sliceCafe, v.want)
+		assert.Len(t, slice, v.want)
 	}
 }
 
